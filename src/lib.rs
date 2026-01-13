@@ -67,7 +67,7 @@ mod yubikey;
 
 pub use crate::{
     cccid::{CardId, CccId},
-    certificate::Certificate,
+    certificate::{Certificate, SigningAlgorithm},
     chuid::ChuId,
     config::Config,
     error::{Error, Result},

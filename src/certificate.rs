@@ -85,6 +85,26 @@ impl From<CertInfo> for u8 {
     }
 }
 
+/// Supported signing algorithms for certificate generation.
+///
+/// This enum provides a type-safe way to specify which algorithm to use
+/// when generating self-signed certificates.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SigningAlgorithm {
+    /// NIST P-256 (secp256r1) elliptic curve
+    EccP256,
+    /// NIST P-384 (secp384r1) elliptic curve
+    EccP384,
+    /// RSA with 1024-bit key
+    Rsa1024,
+    /// RSA with 2048-bit key
+    Rsa2048,
+    /// RSA with 3072-bit key
+    Rsa3072,
+    /// RSA with 4096-bit key
+    Rsa4096,
+}
+
 /// Certificates
 #[derive(Clone, Debug)]
 pub struct Certificate {
@@ -99,7 +119,94 @@ impl Certificate {
     /// `extensions` is optional; if empty, no extensions will be included. Due to the
     /// need for an `O: Oid` type parameter, users who do not have any extensions should
     /// use the workaround `let extensions: &[x509_cert::Extension<'_, &[u64]>] = &[];`.
-    pub fn generate_self_signed<F, KT: yubikey_signer::KeyType>(
+    pub fn generate_self_signed<F>(
+        yubikey: &mut YubiKey,
+        key: SlotId,
+        serial: SerialNumber,
+        validity: Validity,
+        subject: Name,
+        subject_pki: SubjectPublicKeyInfoOwned,
+        algorithm: SigningAlgorithm,
+        extensions: F,
+    ) -> Result<Self>
+    where
+        F: FnOnce(&mut CertificateBuilder<SelfSigned>) -> der::Result<()>,
+    {
+        use yubikey_signer::*;
+
+        match algorithm {
+            SigningAlgorithm::EccP256 => {
+                Self::generate_self_signed_impl::<F, p256::NistP256>(
+                    yubikey,
+                    key,
+                    serial,
+                    validity,
+                    subject,
+                    subject_pki,
+                    extensions,
+                )
+            }
+            SigningAlgorithm::EccP384 => {
+                Self::generate_self_signed_impl::<F, p384::NistP384>(
+                    yubikey,
+                    key,
+                    serial,
+                    validity,
+                    subject,
+                    subject_pki,
+                    extensions,
+                )
+            }
+            SigningAlgorithm::Rsa1024 => {
+                Self::generate_self_signed_impl::<F, YubiRsa<Rsa1024>>(
+                    yubikey,
+                    key,
+                    serial,
+                    validity,
+                    subject,
+                    subject_pki,
+                    extensions,
+                )
+            }
+            SigningAlgorithm::Rsa2048 => {
+                Self::generate_self_signed_impl::<F, YubiRsa<Rsa2048>>(
+                    yubikey,
+                    key,
+                    serial,
+                    validity,
+                    subject,
+                    subject_pki,
+                    extensions,
+                )
+            }
+            SigningAlgorithm::Rsa3072 => {
+                Self::generate_self_signed_impl::<F, YubiRsa<Rsa3072>>(
+                    yubikey,
+                    key,
+                    serial,
+                    validity,
+                    subject,
+                    subject_pki,
+                    extensions,
+                )
+            }
+            SigningAlgorithm::Rsa4096 => {
+                Self::generate_self_signed_impl::<F, YubiRsa<Rsa4096>>(
+                    yubikey,
+                    key,
+                    serial,
+                    validity,
+                    subject,
+                    subject_pki,
+                    extensions,
+                )
+            }
+        }
+    }
+
+    /// Internal implementation that uses the KeyType trait.
+    /// This is kept for backwards compatibility and internal use.
+    fn generate_self_signed_impl<F, KT: yubikey_signer::KeyType>(
         yubikey: &mut YubiKey,
         key: SlotId,
         serial: SerialNumber,
