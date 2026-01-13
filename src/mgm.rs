@@ -199,31 +199,48 @@ enum MgmKeyKind {
 
 impl MgmKey {
     /// Generates a random MGM key for the given algorithm.
-    pub fn generate(alg: MgmAlgorithmId, rng: &mut impl TryCryptoRng) -> Result<Self> {
-        match alg {
+    pub fn generate(alg: MgmAlgorithmId, rng: &mut (impl TryCryptoRng + rand_core::RngCore)) -> Result<Self> {
+        let kind = match alg {
             MgmAlgorithmId::ThreeDes => {
-                des::TdesEde3::try_generate_key_with_rng(rng).map(MgmKeyKind::Tdes)
+                let mut key_bytes = Key::<des::TdesEde3>::default();
+                if let Err(_) = rng.try_fill_bytes(key_bytes.as_mut_slice()) {
+                    error!("RNG failure");
+                    return Err(Error::KeyError);
+                }
+                MgmKeyKind::Tdes(key_bytes)
             }
             MgmAlgorithmId::Aes128 => {
-                aes::Aes128::try_generate_key_with_rng(rng).map(MgmKeyKind::Aes128)
+                let mut key_bytes = Key::<aes::Aes128>::default();
+                if let Err(_) = rng.try_fill_bytes(key_bytes.as_mut_slice()) {
+                    error!("RNG failure");
+                    return Err(Error::KeyError);
+                }
+                MgmKeyKind::Aes128(key_bytes)
             }
             MgmAlgorithmId::Aes192 => {
-                aes::Aes192::try_generate_key_with_rng(rng).map(MgmKeyKind::Aes192)
+                let mut key_bytes = Key::<aes::Aes192>::default();
+                if let Err(_) = rng.try_fill_bytes(key_bytes.as_mut_slice()) {
+                    error!("RNG failure");
+                    return Err(Error::KeyError);
+                }
+                MgmKeyKind::Aes192(key_bytes)
             }
             MgmAlgorithmId::Aes256 => {
-                aes::Aes256::try_generate_key_with_rng(rng).map(MgmKeyKind::Aes256)
+                let mut key_bytes = Key::<aes::Aes256>::default();
+                if let Err(_) = rng.try_fill_bytes(key_bytes.as_mut_slice()) {
+                    error!("RNG failure");
+                    return Err(Error::KeyError);
+                }
+                MgmKeyKind::Aes256(key_bytes)
             }
-        }
-        .map_err(|e| {
-            error!("RNG failure: {}", e);
-            Error::KeyError
-        })
-        .map(Self)
+        };
+        
+        Ok(Self(kind))
     }
 
     /// Generates a random MGM key using the preferred algorithm for the given Yubikey's
     /// firmware version.
-    pub fn generate_for(yubikey: &YubiKey, rng: &mut impl TryCryptoRng) -> Result<Self> {
+    pub fn generate_for(yubikey: &YubiKey, rng: &mut (impl TryCryptoRng + rand_core::RngCore)) -> Result<Self> {
         let alg = MgmAlgorithmId::default_for_version(yubikey.version());
         Self::generate(alg, rng)
     }
