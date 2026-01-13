@@ -50,7 +50,7 @@ use x509_cert::{
 };
 use zeroize::Zeroizing;
 use getrandom::getrandom;
-use std::time::Duration;
+use std::{str::FromStr, time::Duration};
 
 const TAG_CERT: u8 = 0x70;
 const TAG_CERT_COMPRESS: u8 = 0x71;
@@ -243,7 +243,7 @@ impl Certificate {
     pub fn generate_self_signed_auto<F>(
         yubikey: &mut YubiKey,
         key: SlotId,
-        subject: Name,
+        subject: &str,
         subject_pki: SubjectPublicKeyInfoOwned,
         algorithm: SigningAlgorithm,
         validity_duration: Duration,
@@ -269,7 +269,7 @@ impl Certificate {
             key,
             serial,
             validity,
-            subject,
+            Name::from_str(subject).expect("parse name"),
             subject_pki,
             algorithm,
             extensions,
