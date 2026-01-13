@@ -49,6 +49,8 @@ use x509_cert::{
     time::Validity,
 };
 use zeroize::Zeroizing;
+use getrandom::getrandom;
+use std::time::Duration;
 
 const TAG_CERT: u8 = 0x70;
 const TAG_CERT_COMPRESS: u8 = 0x71;
@@ -232,6 +234,46 @@ impl Certificate {
         cert.write(yubikey, key, CertInfo::Uncompressed)?;
 
         Ok(cert)
+    }
+
+    /// Convenience helper that generates a random serial number and a validity
+    /// period relative to now, then creates and writes a self-signed certificate.
+    ///
+    /// `serial_len` must be between 1 and 20 (inclusive) due to X.509 serial limits.
+    pub fn generate_self_signed_auto<F>(
+        yubikey: &mut YubiKey,
+        key: SlotId,
+        subject: Name,
+        subject_pki: SubjectPublicKeyInfoOwned,
+        algorithm: SigningAlgorithm,
+        validity_duration: Duration,
+        serial_len: usize,
+        extensions: F,
+    ) -> Result<Self>
+    where
+        F: FnOnce(&mut CertificateBuilder<SelfSigned>) -> der::Result<()>,
+    {
+        if serial_len == 0 || serial_len > 20 {
+            return Err(Error::SizeError);
+        }
+
+        let mut serial_bytes = vec![0u8; serial_len];
+        getrandom(&mut serial_bytes).map_err(|_| Error::GenericError)?;
+        let serial = SerialNumber::new(&serial_bytes).map_err(|_| Error::SizeError)?;
+
+        let validity = Validity::from_now(validity_duration).map_err(|_| Error::GenericError)?;
+
+        // Delegate to the main entrypoint which dispatches on algorithm
+        Certificate::generate_self_signed(
+            yubikey,
+            key,
+            serial,
+            validity,
+            subject,
+            subject_pki,
+            algorithm,
+            extensions,
+        )
     }
 
     /// Read a certificate from the given slot in the YubiKey
